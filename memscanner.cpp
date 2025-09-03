@@ -27,7 +27,7 @@ int main(int argc, char **argv){
 	options.add_options()
 		("p,pid", "Target Process ID", cxxopts::value<int>())
     	("s,string", "Search Pattern (ASCII string or hex bytes separated by space)", cxxopts::value<std::vector<std::string>>())
-    	("b,bytes",  "Pattern esadecimale (es: \"90 90 cc\")", cxxopts::value<std::vector<std::string>>())
+    	("b,bytes",  "Pattern esadecimale (e.g.: \"90 90 CC\")", cxxopts::value<std::vector<std::string>>())
     	("h,help", "Print help");
 		
 				
@@ -51,6 +51,9 @@ int main(int argc, char **argv){
 
         int pid = result["pid"].as<int>();
         HANDLE hProcess = openProcess(pid);
+        if(hProcess == NULL){
+        	return EXIT_FAILURE;
+		}
 
         // Patterns ASCII
         if (result.count("string")) {
@@ -123,7 +126,8 @@ HANDLE openProcess(int pid){
 	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
 	if (hProcess == NULL) { // Failed to get a handle
 		printf("\nOpenProcess failed. GetLastError = %d\n", GetLastError());
-		system("pause");
+		//system("pause");
+		return NULL;
 	}
 	else {
 		printf("\nOpenProcess succedeed with code: %d\n", GetLastError());
