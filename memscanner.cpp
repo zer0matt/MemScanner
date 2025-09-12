@@ -21,63 +21,64 @@ void scanMemory(HANDLE hProcess, const Pattern& pattern);
 
 int main(int argc, char **argv){
 	printf("\nWelcome to my basic memory scanner\n");
-	// Usage: memscanner -p 1234 -s "90 90" oppure memscanner -p 1234 -s "ciao"
 	
 	cxxopts::Options options("Memory Scanner", "Basic Memory Scanner for fun");
 	options.add_options()
 		("p,pid", "Target Process ID", cxxopts::value<int>())
-    	("s,string", "Search Pattern (ASCII string or hex bytes separated by space)", cxxopts::value<std::vector<std::string>>())
-    	("b,bytes",  "Pattern esadecimale (e.g.: \"90 90 CC\")", cxxopts::value<std::vector<std::string>>())
+    	("s,string", "Search for ASCII String Pattern (case sensitive)", cxxopts::value<std::vector<std::string>>())
+    	("b,bytes",  "Search for HEX Pattern (e.g.: \"90 90 CC\")", cxxopts::value<std::vector<std::string>>())
     	("h,help", "Print help");
 		
 				
 	auto result = options.parse(argc, argv);
 	
+	if (result.count("help") || !result.count("pid")) {
+        std::cout << options.help() << std::endl;
+        return 0;
+    }
+	
 	if (result.count("string") && result.count("bytes")) {
-	    std::cerr << "Errore: puoi usare solo -s (stringa) oppure -b (byte), non entrambi\n";
+	    std::cout << options.help() << std::endl;
 	    return 1;
 	}
 
 	if (!result.count("string") && !result.count("bytes")) {
-	    std::cerr << "Errore: devi specificare almeno un pattern con -s o -b\n";
+	    std::cout << options.help() << std::endl;
 	    return 1;
 	}
 
 	
-	if (result.count("help") || !result.count("pid")) {
-            std::cout << options.help() << std::endl;
-            return 0;
-        }
 
-        int pid = result["pid"].as<int>();
-        HANDLE hProcess = openProcess(pid);
-        if(hProcess == NULL){
-        	return EXIT_FAILURE;
-		}
 
-        // Patterns ASCII
-        if (result.count("string")) {
-            auto inputs = result["string"].as<std::vector<std::string>>();
+    int pid = result["pid"].as<int>();
+    HANDLE hProcess = openProcess(pid);
+    if(hProcess == NULL){
+        return EXIT_FAILURE;
+	}
+
+    // ASCII Patterns
+    if (result.count("string")) {
+        auto inputs = result["string"].as<std::vector<std::string>>();
             for (auto& s : inputs) {
-                Pattern p;
-                p.size = s.size();
-                p.bytes = (BYTE*)malloc(p.size);
-                memcpy(p.bytes, s.c_str(), p.size);
+            Pattern p;
+            p.size = s.size();
+            p.bytes = (BYTE*)malloc(p.size);
+            memcpy(p.bytes, s.c_str(), p.size);
 
-                scanMemory(hProcess, p);
-                free(p.bytes);
-            }
+            scanMemory(hProcess, p);
+            free(p.bytes);
         }
+    }
 
-        // Patterns HEX
-        if (result.count("bytes")) {
-            auto inputs = result["bytes"].as<std::vector<std::string>>();
-            for (auto& s : inputs) {
-                Pattern p = parsePattern(s);
-                scanMemory(hProcess, p);
-                free(p.bytes);
-            }
+        // HEX Patterns
+    if (result.count("bytes")) {
+        auto inputs = result["bytes"].as<std::vector<std::string>>();
+        for (auto& s : inputs) {
+            Pattern p = parsePattern(s);
+            scanMemory(hProcess, p);
+            free(p.bytes);
         }
+    }
 
     CloseHandle(hProcess);
 	return 0;
@@ -88,7 +89,7 @@ Pattern parsePattern(const std::string& input){
     p.bytes = nullptr;
     p.size = 0;
 
-    // suddivide la stringa in token separati da spazi
+    
     std::vector<std::string> tokens;
     char* tmp = strdup(input.c_str());
     char* token = strtok(tmp, " ");
@@ -105,7 +106,6 @@ Pattern parsePattern(const std::string& input){
         exit(1);
     }
 
-    // converte ogni token HEX in BYTE con controllo degli errori
     for (size_t i = 0; i < tokens.size(); i++) {
         char* end;
         unsigned long val = strtoul(tokens[i].c_str(), &end, 16);
@@ -141,7 +141,7 @@ void scanMemory(HANDLE hProcess, const Pattern& pattern){
 
     MEMORY_BASIC_INFORMATION mbi;
     unsigned char* addr = 0;
-
+    int found = 0;
     while (addr < (unsigned char*)sysInfo.lpMaximumApplicationAddress) {
         if (VirtualQueryEx(hProcess, addr, &mbi, sizeof(mbi)) == sizeof(mbi)) {
             if ((mbi.State == MEM_COMMIT) && 
@@ -149,19 +149,23 @@ void scanMemory(HANDLE hProcess, const Pattern& pattern){
                 std::vector<BYTE> buffer(mbi.RegionSize);
                 SIZE_T bytesRead;
                 if (ReadProcessMemory(hProcess, addr, buffer.data(), mbi.RegionSize, &bytesRead)) {
-                    // cerca il pattern
+                    // search for pattern
                     for (size_t i = 0; i + pattern.size <= bytesRead; i++) {
                         if (memcmp(buffer.data() + i, pattern.bytes, pattern.size) == 0) {
                         	printf("\nPattern found at address 0x%p\n", static_cast<void*>(addr + i));
+                        	found = 1;
                         }
                     }
                 }
             }
             addr += mbi.RegionSize;
         } else {
-            addr += 0x1000; // fallback se VirtualQueryEx fallisce
+            addr += 0x1000; // fallback if VirtualQueryEx fails
         }
     }
+    if(!found){
+        printf("\nPattern not found\n");
+	}
     system("pause");
 }
 
