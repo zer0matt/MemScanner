@@ -1,6 +1,4 @@
-// memory_scanner.cpp
-// Versione aggiornata: ricerca per pattern e ricerca per protezione memoria
-// Compila con Visual Studio (cl) o MinGW (g++) su Windows
+// Memory Scanner
 
 #include <windows.h>
 #include <iostream>
