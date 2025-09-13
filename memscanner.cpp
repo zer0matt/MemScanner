@@ -152,7 +152,7 @@ void scanMemory(HANDLE hProcess, const Pattern& pattern){
                     // search for pattern
                     for (size_t i = 0; i + pattern.size <= bytesRead; i++) {
                         if (memcmp(buffer.data() + i, pattern.bytes, pattern.size) == 0) {
-                        	printf("\nPattern found at address 0x%p\n", static_cast<void*>(addr + i));
+                        	printf("\nPattern found at address 0x%p with protection 0x%x\n", static_cast<void*>(addr + i), mbi.Protect);
                         	found = 1;
                         }
                     }
